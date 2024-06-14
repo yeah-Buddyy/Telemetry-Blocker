@@ -6,7 +6,6 @@ https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/
 https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/spy_v6.txt
 https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/firewall/spy.txt
 
-First we will parse the domains from the sources above, then we will get all the ips from the domains and last we will add it to the hosts file, firewall and persistent routes, to block the telemetry.
-You can specifiy your own telemetry domains in the script. There is also the possibility to whitelist some domains and ips if you want to.
+First we parse the domains from the sources above, then we get all the ips from the domains and finally we add them to the hosts file, firewall and persistent routes to block the telemetry. You can specify your own telemetry domains in the script. You can also whitelist some domains and ips if you want.
 
-If anything goes wrong, you can always undo the changes, because before the script makes any changes, it creates a backup of the hosts file, firewall and persistent routes.
+If something goes wrong, you can always undo the changes as the script makes a backup of the hosts file, firewall and persistent routes before making any changes.
