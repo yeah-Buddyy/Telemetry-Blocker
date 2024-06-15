@@ -11,6 +11,11 @@ $Global:ListIps = [System.Collections.Generic.HashSet[string]]::new()
 $Global:DateAndTime = (Get-Date).ToString('dd-MM-yyyy_HH-mm-ss')
 
 $Global:WhiteListDomains = @(
+    "msn.com"
+    "live.com"
+)
+
+$Global:WhiteListSubDomains = @(
     # https://github.com/W4RH4WK/Debloat-Windows-10/blob/master/scripts/block-telemetry.ps1
     "cs1.wpc.v0cdn.net" # WingetUi is using this Url, to get the latest Microsoft Redistributable
     "b.ads2.msads.net" # WingetUi is using this Url, to get the latest Windows Desktop Runtime
@@ -101,6 +106,20 @@ function IsValidIPv6 {
     }
 }
 
+# Function to check if any whitelist domain is part of the given string
+function Is-DomainInWhitelist {
+    param (
+        [string]$domain
+    )
+
+    foreach ($whitelistDomain in $Global:WhiteListDomains) {
+        if ($domain -match [regex]::Escape($whitelistDomain)) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function GetIp {
     # Writes a new line
     foreach ($domain in $Global:ListDomains -split "`n") {
@@ -112,60 +131,62 @@ function GetIp {
                 # Split domains by whitespace, because format of list is 0.0.0.0 domain.com
                 $SplitDomain = $url.ToLower() -Split '\s+'
                 # Write-Output $SplitDomain[1]
-                if ($Global:WhiteListDomains -notcontains $SplitDomain[1]) {
-                    # Domain to ip
-                    $Resolve = $null
-                    # Get only "A" = IPv4 Records. AAAA is = IPv6
-                    $Resolve = Resolve-DnsName -Name $SplitDomain[1] -Type A -ErrorAction SilentlyContinue
+                if ($Global:WhiteListSubDomains -notcontains $SplitDomain[1]) {
+                    if (-not(Is-DomainInWhitelist -domain $SplitDomain[1])) {
+                        # Domain to ip
+                        $Resolve = $null
+                        # Get only "A" = IPv4 Records. AAAA is = IPv6
+                        $Resolve = Resolve-DnsName -Name $SplitDomain[1] -Type A -ErrorAction SilentlyContinue
 
-                    $ObjectOutput = [PSCustomObject]@{
-                        IP = $Resolve.IPAddress
-                        Name = $Resolve.Name
-                        Type = $Resolve.Type
-                        TTL = $Resolve.TTL
-                        Section = $Resolve.Section
-                        NameHost = $Resolve.NameHost
-                    }
+                        $ObjectOutput = [PSCustomObject]@{
+                            IP = $Resolve.IPAddress
+                            Name = $Resolve.Name
+                            Type = $Resolve.Type
+                            TTL = $Resolve.TTL
+                            Section = $Resolve.Section
+                            NameHost = $Resolve.NameHost
+                        }
 
-                    # Hosts can have multiple Ip Addresses, we just select the first one
-                    #$OutputIp = $ObjectOutput.IP | select -First 1
-                    $OutputIp = $ObjectOutput.IP
-                    foreach ($ip in $OutputIp -split "`n") {
-                        if ((-Not [String]::IsNullOrWhiteSpace($ip))) {
-                            if ($Global:WhiteListIps -notcontains $ip.ToLower()) {
-                                # checks for empty ipv4 adress
-                                if (!($ip.ToLower().Contains("0.0.0.0"))) {
-                                    if (IsValidIpAddress $ip) {
-                                        #Write-Output "Ip:" $ip "Domain:" $SplitDomain[1]
-                                        # Add Ips to List
-                                        $Global:ListIps.Add($ip) | Out-Null
+                        # Hosts can have multiple Ip Addresses, we just select the first one
+                        #$OutputIp = $ObjectOutput.IP | select -First 1
+                        $OutputIp = $ObjectOutput.IP
+                        foreach ($ip in $OutputIp -split "`n") {
+                            if ((-Not [String]::IsNullOrWhiteSpace($ip))) {
+                                if ($Global:WhiteListIps -notcontains $ip.ToLower()) {
+                                    # checks for empty ipv4 adress
+                                    if (!($ip.ToLower().Contains("0.0.0.0"))) {
+                                        if (IsValidIpAddress $ip) {
+                                            #Write-Output "Ip:" $ip "Domain:" $SplitDomain[1]
+                                            # Add Ips to List
+                                            $Global:ListIps.Add($ip) | Out-Null
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    $ResolveIpV6 = Resolve-DnsName -Name $SplitDomain[1] -Type AAAA -ErrorAction SilentlyContinue
+                        $ResolveIpV6 = Resolve-DnsName -Name $SplitDomain[1] -Type AAAA -ErrorAction SilentlyContinue
 
-                    $ObjectOutputIPV6 = [PSCustomObject]@{
-                        IP = $ResolveIpV6.IPAddress
-                        Name = $ResolveIpV6.Name
-                        Type = $ResolveIpV6.Type
-                        TTL = $ResolveIpV6.TTL
-                        Section = $ResolveIpV6.Section
-                        NameHost = $ResolveIpV6.NameHost
-                    }
+                        $ObjectOutputIPV6 = [PSCustomObject]@{
+                            IP = $ResolveIpV6.IPAddress
+                            Name = $ResolveIpV6.Name
+                            Type = $ResolveIpV6.Type
+                            TTL = $ResolveIpV6.TTL
+                            Section = $ResolveIpV6.Section
+                            NameHost = $ResolveIpV6.NameHost
+                        }
 
-                    $OutputIPV6 = $ObjectOutputIPV6.IP
-                    foreach ($ipv6 in $OutputIPV6 -split "`n") {
-                        if ((-Not [String]::IsNullOrWhiteSpace($ipv6))) {
-                            if ($Global:WhiteListIps -notcontains $ipv6.ToLower()) {
-                                # checks for empty ipv6 adress | if not only ::
-                                if (!($ipv6.ToLower() -match '^[::]*$')) {
-                                    if (IsValidIpAddress $ipv6) { 
-                                        #Write-Output "Ip:" $ipv6 "Domain:" $SplitDomain[1]
-                                        # Add Ips to List
-                                        $Global:ListIps.Add($ipv6) | Out-Null
+                        $OutputIPV6 = $ObjectOutputIPV6.IP
+                        foreach ($ipv6 in $OutputIPV6 -split "`n") {
+                            if ((-Not [String]::IsNullOrWhiteSpace($ipv6))) {
+                                if ($Global:WhiteListIps -notcontains $ipv6.ToLower()) {
+                                    # checks for empty ipv6 adress | if not only ::
+                                    if (!($ipv6.ToLower() -match '^[::]*$')) {
+                                        if (IsValidIpAddress $ipv6) { 
+                                            #Write-Output "Ip:" $ipv6 "Domain:" $SplitDomain[1]
+                                            # Add Ips to List
+                                            $Global:ListIps.Add($ipv6) | Out-Null
+                                        }
                                     }
                                 }
                             }
@@ -290,7 +311,7 @@ function HostsFile {
 
     foreach ($domain in $domains) {
         $url = $domain.trim()
-        if ($Global:WhiteListDomains -notcontains $url.ToLower()) {
+        if ($Global:WhiteListSubDomains -notcontains $url.ToLower()) {
             # ipv4 hosts file format
             $Global:ListDomains.Add("0.0.0.0 $url") | Out-Null
             # ipv6 hosts file format
@@ -303,7 +324,7 @@ function HostsFile {
     $request = $(Invoke-WebRequest -Uri "https://raw.githubusercontent.com/RPiList/specials/master/Blocklisten/Win10Telemetry").Content | out-string
     foreach ($domain in $request -split "`n") {
         $url = $domain.trim()
-        if ($Global:WhiteListDomains -notcontains $url.ToLower()) {
+        if ($Global:WhiteListSubDomains -notcontains $url.ToLower()) {
             # if line doesnt have a hashtag
             if ($url -inotmatch "#") {
                 # if line not empty
@@ -323,7 +344,7 @@ function HostsFile {
         foreach ($domain in $request -split "`n") {
             $url = $domain.trim()
             $SplitDomain = $url.ToLower() -Split '\s+'
-            if ($Global:WhiteListDomains -notcontains $SplitDomain[1]) {
+            if ($Global:WhiteListSubDomains -notcontains $SplitDomain[1]) {
                 # if line doesnt have a hashtag
                 if ($url -inotmatch "#") {
                     # if line not empty
@@ -341,7 +362,7 @@ function HostsFile {
     Write-Host "Writing hosts file" -ForegroundColor Green
     foreach ($domain in $Global:ListDomains -split "`n") {
         $url = $domain.trim()
-        if ($Global:WhiteListDomains -notcontains $url.ToLower()) {
+        if ($Global:WhiteListSubDomains -notcontains $url.ToLower()) {
             # if line doesnt have a hashtag
             if ($url -inotmatch "#") {
                 # if line not empty
