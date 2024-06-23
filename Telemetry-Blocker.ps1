@@ -13,6 +13,7 @@ $Global:DateAndTime = (Get-Date).ToString('dd-MM-yyyy_HH-mm-ss')
 $Global:WhiteListDomains = @(
     "msn.com"
     "live.com"
+    "microsoft.com"
 )
 
 $Global:WhiteListSubDomains = @(
