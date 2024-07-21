@@ -11,9 +11,10 @@ $Global:ListIps = [System.Collections.Generic.HashSet[string]]::new()
 $Global:DateAndTime = (Get-Date).ToString('dd-MM-yyyy_HH-mm-ss')
 
 $Global:WhiteListDomains = @(
-    "msn.com"
-    "live.com"
-    "microsoft.com"
+    #Examples
+    #"msn.com"
+    #"live.com"
+    #"microsoft.com"
 )
 
 $Global:WhiteListSubDomains = @(
@@ -35,11 +36,13 @@ $Global:WhiteListSubDomains = @(
     "p.static.ads-twitter.com" # may cause issues with Twitter login
     "login.live.com" # prevents login to outlook and other live apps
     "g.live.com" # Used to save BitLocker recovery keys to a Microsoft account
+    "cache.datamart.windows.com" # Breaks multiple microsoft websites, like the login button on outlook.com or answers.microsoft.com
 )
 
 $Global:WhiteListIps = @(
     # https://github.com/W4RH4WK/Debloat-Windows-10/blob/master/scripts/block-telemetry.ps1
     "65.52.108.33" # Causes problems with Microsoft Store
+    "13.107.246.67" # Breaks multiple microsoft websites, like the login button on outlook.com or answers.microsoft.com
 )
 
 function CheckInternetConnection {
@@ -313,10 +316,12 @@ function HostsFile {
     foreach ($domain in $domains) {
         $url = $domain.trim()
         if ($Global:WhiteListSubDomains -notcontains $url.ToLower()) {
-            # ipv4 hosts file format
-            $Global:ListDomains.Add("0.0.0.0 $url") | Out-Null
-            # ipv6 hosts file format
-            $Global:ListDomains.Add(":: $url") | Out-Null
+            if (-not(Is-DomainInWhitelist -domain $url.ToLower())) {
+                # ipv4 hosts file format
+                $Global:ListDomains.Add("0.0.0.0 $url") | Out-Null
+                # ipv6 hosts file format
+                $Global:ListDomains.Add(":: $url") | Out-Null
+            }
         }
     }
 
@@ -326,13 +331,15 @@ function HostsFile {
     foreach ($domain in $request -split "`n") {
         $url = $domain.trim()
         if ($Global:WhiteListSubDomains -notcontains $url.ToLower()) {
-            # if line doesnt have a hashtag
-            if ($url -inotmatch "#") {
-                # if line not empty
-                if ((-Not [String]::IsNullOrWhiteSpace($url))) {
-                    # 0.0.0.0 = IPV4, :: = IPV6
-                    $Global:ListDomains.Add("0.0.0.0 $url") | Out-Null
-                    $Global:ListDomains.Add(":: $url") | Out-Null
+            if (-not(Is-DomainInWhitelist -domain $url.ToLower())) {
+                # if line doesnt have a hashtag
+                if ($url -inotmatch "#") {
+                    # if line not empty
+                    if ((-Not [String]::IsNullOrWhiteSpace($url))) {
+                        # 0.0.0.0 = IPV4, :: = IPV6
+                        $Global:ListDomains.Add("0.0.0.0 $url") | Out-Null
+                        $Global:ListDomains.Add(":: $url") | Out-Null
+                    }
                 }
             }
         }
@@ -346,11 +353,13 @@ function HostsFile {
             $url = $domain.trim()
             $SplitDomain = $url.ToLower() -Split '\s+'
             if ($Global:WhiteListSubDomains -notcontains $SplitDomain[1]) {
-                # if line doesnt have a hashtag
-                if ($url -inotmatch "#") {
-                    # if line not empty
-                    if ((-Not [String]::IsNullOrWhiteSpace($url))) {
-                        $Global:ListDomains.Add("$url") | Out-Null
+                if (-not(Is-DomainInWhitelist -domain $SplitDomain[1])) {
+                    # if line doesnt have a hashtag
+                    if ($url -inotmatch "#") {
+                        # if line not empty
+                        if ((-Not [String]::IsNullOrWhiteSpace($url))) {
+                            $Global:ListDomains.Add("$url") | Out-Null
+                        }
                     }
                 }
             }
@@ -364,12 +373,14 @@ function HostsFile {
     foreach ($domain in $Global:ListDomains -split "`n") {
         $url = $domain.trim()
         if ($Global:WhiteListSubDomains -notcontains $url.ToLower()) {
-            # if line doesnt have a hashtag
-            if ($url -inotmatch "#") {
-                # if line not empty
-                if ((-Not [String]::IsNullOrWhiteSpace($url))) {
-                    # Append domains to hosts file
-                    Write-Output "$url" | Out-File -Encoding ASCII -Append $hosts_file
+            if (-not(Is-DomainInWhitelist -domain $url.ToLower())) {
+                # if line doesnt have a hashtag
+                if ($url -inotmatch "#") {
+                    # if line not empty
+                    if ((-Not [String]::IsNullOrWhiteSpace($url))) {
+                        # Append domains to hosts file
+                        Write-Output "$url" | Out-File -Encoding ASCII -Append $hosts_file
+                    }
                 }
             }
         }
