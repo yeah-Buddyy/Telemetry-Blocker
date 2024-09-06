@@ -1,3 +1,5 @@
+# Parsing and blocking the IP addresses can lead to a lot of false positives and break a lot of things, especially since we are resolving all addresses from the given domain.
+
 # Run as Admin
 if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process PowerShell.exe -Verb RunAs "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command `"cd '$pwd'; & '$PSCommandPath';`"";
@@ -60,7 +62,7 @@ function CheckInternetConnection {
         }
 
         Write-Output "Internet Connection Check Attempt Nr: $i"
-        sleep 1
+        Start-Sleep 1
 
         if($pingresult -Match 'TTL=') {
             break
@@ -71,8 +73,8 @@ function CheckInternetConnection {
                 $ScriptName = [io.path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name)
                 $ScriptPath = $MyInvocation.MyCommand.Path
                 # C:\WINDOWS\system32
-                $env:SystemDirectory = [Environment]::SystemDirectory
-                New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Force -Name "$ScriptName" -PropertyType "String" -Value "`"$env:SystemDirectory\WindowsPowerShell\v1.0\powershell.exe`" -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+                $SystemDirectory = "$Env:WinDir\system32"
+                New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Force -Name "$ScriptName" -PropertyType "String" -Value "`"$SystemDirectory\WindowsPowerShell\v1.0\powershell.exe`" -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`"" | Out-Null
                 pause
                 exit
             }
@@ -100,7 +102,7 @@ function IsValidIPv6 {
     )
 
     # Try to parse the IP address
-    $result = [System.Net.IPAddress]::TryParse($IPAddress, [ref]$null)
+    $result = [System.Net.IPAddress]::TryParse($IPAddress, [ref]$null) | Out-Null
 
     # Check if it's a valid IPv6 address
     if ($result -and [System.Net.IPAddress]::Parse($IPAddress).AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
@@ -220,7 +222,7 @@ function DoBackupAndRemoveCurrentFirewallIps {
     Write-Host "Creating backup of current firewall" -ForegroundColor Yellow
     # Backup firewall
     if(!(test-path -PathType container "$PSScriptRoot\Firewall-Backup")) {
-        New-Item -ItemType Directory -Path "$PSScriptRoot\Firewall-Backup"
+        New-Item -ItemType Directory -Path "$PSScriptRoot\Firewall-Backup" | Out-Null
     }
     reg export "HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules" "$PSScriptRoot\Firewall-Backup\Firewall-$Global:DateAndTime.reg.BACKUP" /y
 
@@ -255,7 +257,7 @@ function DoBackupAndRemoveCurrentPersistentRoutes {
     Write-Host "Creating backup of current persistent routes" -ForegroundColor Yellow
     # Backup routes
     if(!(test-path -PathType container "$PSScriptRoot\Persistent-Routes-Backup")) {
-        New-Item -ItemType Directory -Path "$PSScriptRoot\Persistent-Routes-Backup"
+        New-Item -ItemType Directory -Path "$PSScriptRoot\Persistent-Routes-Backup" | Out-Null
     }
     reg export "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\PersistentRoutes" "$PSScriptRoot\Persistent-Routes-Backup\Persistent-Routes-$Global:DateAndTime.reg.BACKUP" /y
     
@@ -275,7 +277,7 @@ function HostsFile {
     } else {
         $hosts_file = "$env:systemroot\System32\drivers\etc\hosts"
         Write-Host "Sorry you dont have a hosts file, we will create one" -ForegroundColor Yellow
-        New-Item "$hosts_file" -Force
+        New-Item "$hosts_file" -Force | Out-Null
     }
 
     Write-Host "Adding telemetry endpoints from self research" -ForegroundColor Green
