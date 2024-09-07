@@ -6,6 +6,8 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
     exit;
 }
 
+$parseDomainToIpAndBlock = $false
+
 # Create a global HashSet to store unique strings
 $Global:ListDomains = [System.Collections.Generic.HashSet[string]]::new()
 $Global:ListIps = [System.Collections.Generic.HashSet[string]]::new()
@@ -61,7 +63,7 @@ function CheckInternetConnection {
             Write-Host "Internet error" -ForegroundColor Red
         }
 
-        Write-Output "Internet Connection Check Attempt Nr: $i"
+        Write-Host "Internet Connection Check Attempt Nr: $i"
         Start-Sleep 1
 
         if($pingresult -Match 'TTL=') {
@@ -209,7 +211,7 @@ function DoBackupAndRemoveCurrentHostsFile {
     # Backup hosts file
     if (Test-Path "$env:systemroot\System32\drivers\etc\hosts" -PathType Leaf) {
         If(!(test-path -PathType container "$PSScriptRoot\Hosts-File-Backup")) {
-            New-Item -ItemType Directory -Path "$PSScriptRoot\Hosts-File-Backup"
+            New-Item -ItemType Directory -Path "$PSScriptRoot\Hosts-File-Backup" | Out-Null
         }
         Copy-Item "$env:systemroot\System32\drivers\etc\hosts" "$PSScriptRoot\Hosts-File-Backup\hosts-$Global:DateAndTime.BACKUP" -Force
         if (Test-Path "$PSScriptRoot\Hosts-File-Backup\hosts-$Global:DateAndTime.BACKUP" -PathType Leaf) {
@@ -260,7 +262,7 @@ function DoBackupAndRemoveCurrentPersistentRoutes {
         New-Item -ItemType Directory -Path "$PSScriptRoot\Persistent-Routes-Backup" | Out-Null
     }
     reg export "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\PersistentRoutes" "$PSScriptRoot\Persistent-Routes-Backup\Persistent-Routes-$Global:DateAndTime.reg.BACKUP" /y
-    
+
     Write-Host "Deleting current persistent routes" -ForegroundColor Green
     if (Test-Path "$PSScriptRoot\Persistent-Routes-Backup\Persistent-Routes-$Global:DateAndTime.reg.BACKUP" -PathType Leaf) {
         # reg delete "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\PersistentRoutes" /va /f
@@ -369,7 +371,9 @@ function HostsFile {
     }
 
     Write-Host "Get the ips from the parsed domains" -ForegroundColor Green
-    GetIp
+    if ($parseDomainToIpAndBlock) {
+        GetIp
+    }
 
     Write-Host "Writing hosts file" -ForegroundColor Green
     foreach ($domain in $Global:ListDomains -split "`n") {
@@ -444,11 +448,15 @@ function Firewall {
 function PersistentRoutes {
     Write-Host "Blocking telemetry via persistent routes.." -ForegroundColor Magenta
 
-    Write-Host "Remove any existing ipv6 persistent route to avoid duplicates" -ForegroundColor Green
+    Write-Host "Remove any existing ipv6 / ipv4 persistent route to avoid duplicates" -ForegroundColor Green
     foreach ($IpAddress in $Global:ListIps -split "`n") {
         $Ip = $IpAddress.trim()
         if (IsValidIPv6 $Ip) {
             route -p delete $Ip/32 | Out-Null
+        } else {
+            if (IsValidIpAddress $Ip) {
+                route -p delete $Ip | Out-Null
+            }
         }
     }
 
@@ -494,4 +502,5 @@ Start-Process -FilePath "$env:SystemRoot\System32\netsh.exe" -ArgumentList "inte
 Start-Process -FilePath "$env:SystemRoot\System32\netsh.exe" -ArgumentList "interface ip delete destinationcache" -Verb "RunAs" -WindowStyle Hidden -Wait
 Clear-DnsClientCache
 
+pause
 exit
